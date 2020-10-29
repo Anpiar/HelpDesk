@@ -1,0 +1,104 @@
+import psycopg2
+import hashlib
+from PyQt5 import QtCore, QtWidgets
+import GUI
+import Vote
+
+
+class AuthMainWindow(QtWidgets.QMainWindow, GUI.Ui_AuthWindow, GUI.Ui_ErorrWindow ):
+    def __init__(self):
+        super().__init__()
+        self.setupAuthWindow(self)
+        self.loginButton.clicked.connect(self.loginButtonClicked)
+
+
+    def showError(self):
+        errorWindow = AuthErrorWindow(self)
+        errorWindow.show()
+
+
+    def loginButtonClicked(self):
+        login_value = self.login_field.text() #значение туть
+        pass_value = self.pass_field.text()
+        conn = psycopg2.connect(dbname='HelpDeskAuth', user='postgres',
+                                password='Hantera12', host='localhost')
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM "Authinfo" WHERE "Login" = %s', (login_value,))
+        if cursor.rowcount == 0:
+            self.showError()
+        for row in cursor:
+            check_value = row[1]
+            adm_rights = row[5]
+            pass_value = pass_value + 'hiden_salt'
+            hash_pass = hashlib.md5(pass_value.encode())
+            if check_value == hash_pass.hexdigest():
+                if adm_rights == 1:
+                    self.close()
+                    voteWindow = VoteWindow(self)
+                    voteWindow.show()
+                else:
+                    self.close()
+                    voteWindow = VoteWindow(self)
+                    voteWindow.admButton.setEnabled(False)
+                    voteWindow.show()
+            else:
+                self.showError()
+        cursor.close()
+
+class AuthErrorWindow(QtWidgets.QMainWindow, GUI.Ui_ErorrWindow):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setupErrorWindow(self)
+
+class VoteWindow(QtWidgets.QMainWindow, GUI.Ui_VoteWindow):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setupVoteWindow(self)
+        self.stockButton.clicked.connect(self.stockButtonClicked)
+
+    def stockButtonClicked(self):
+        mainWindow = MainWindow(self)
+        mainWindow.show()
+
+class MainWindow(QtWidgets.QMainWindow, GUI.Ui_MainWindow):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setupMainWindow(self)
+        self.action.triggered.connect(self.openAddForm)
+
+    def openAddForm(self):
+        form = AddStockItem(self)
+        form.show()
+
+class AddStockItem(QtWidgets.QMainWindow, GUI.Ui_AddNew):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setupAddItem(self)
+        self.statusBox.currentIndexChanged.connect(self.addBranchField)
+        self.addItemButton.clicked.connect(self.addItem)
+
+    def addBranchField(self):
+        if self.statusBox.currentIndex() == 1:
+            self.brench.show()
+            self.brenchBox.show()
+        else:
+            self.brench.hide()
+            self.brenchBox.hide()
+
+    def addItem(self):
+        conn = psycopg2.connect(dbname='HelpDeskAuth', user='postgres',
+                                password='Hantera12', host='localhost')
+        cursor = conn.cursor()
+        types = self.typeBox.currentText()
+        serial_number = self.snLine.text()
+        model = self.modelLine.text()
+        inventory_number = self.inLine.text()
+        status = self.statusBox.currentText()
+        brench = self.brenchBox.currentText()
+       #author = login_value ???
+        cursor.execute('INSERT INTO "Stock" ("Type" ,"SN" ,"Model" , "InvN", "Status", "Brench") VALUES (%s, %s, %s, %s, %s, %s)', (types , serial_number, model, inventory_number, status, brench))
+        conn.commit()
+
+
+
+
